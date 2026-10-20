@@ -1,0 +1,56 @@
+---
+- name: Capstone baseline (must be idempotent)
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    swap_mb: 2048
+    install_docker: false
+  tasks:
+    - name: Refresh apt cache (not counted as a change)
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      changed_when: false
+    - name: Base tools
+      ansible.builtin.apt:
+        name: [git, curl, jq, unzip]
+        state: present
+    - name: CI tools (Docker and Python venv)
+      ansible.builtin.apt:
+        name: [docker.io, python3-venv]
+        state: present
+      when: install_docker | bool
+    - name: Docker service enabled and started
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+      when: install_docker | bool
+    - name: Create swap file
+      ansible.builtin.command: "fallocate -l {{ swap_mb }}M /swapfile"
+      args:
+        creates: /swapfile
+    - name: Swap file permissions
+      ansible.builtin.file:
+        path: /swapfile
+        owner: root
+        group: root
+        mode: "0600"
+    - name: Format swap file
+      ansible.builtin.shell: "blkid -t TYPE=swap /swapfile >/dev/null 2>&1 || (mkswap /swapfile && echo formatted)"
+      register: fmt
+      changed_when: "'formatted' in fmt.stdout"
+    - name: Enable swap
+      ansible.builtin.shell: "swapon --show=NAME --noheadings | grep -qx /swapfile || (swapon /swapfile && echo enabled)"
+      register: son
+      changed_when: "'enabled' in son.stdout"
+    - name: Persist swap in fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: "/swapfile none swap sw 0 0"
+    - name: Marker file proving Ansible managed this server
+      ansible.builtin.copy:
+        dest: /etc/capstone-baseline.txt
+        content: "managed-by=ansible\nswap_mb={{ swap_mb }}\n"
+        mode: "0644"
