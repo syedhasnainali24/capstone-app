@@ -10,7 +10,7 @@ TOKEN = os.environ.get("TOKEN", "none")
 
 @app.route("/")
 def home():
-    return f"Capstone app v{VERSION} | owner={OWNER} | token={TOKEN}\n"
+    return f"Capstone app (class demo) v{VERSION} | owner={OWNER} | token={TOKEN}\n"
 
 
 @app.route("/health")
