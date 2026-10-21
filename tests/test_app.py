@@ -6,4 +6,4 @@ def test_home():
 
 
 def test_health():
-    assert app.test_client().get("/health").data == b"fine"
+    assert app.test_client().get("/health").data == b"ok"
